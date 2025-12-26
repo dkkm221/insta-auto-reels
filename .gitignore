@@ -1,0 +1,7 @@
+*.session
+*.csv
+*.mp4
+*.jpg
+__pycache__/
+downloads/
+test_*.py
