@@ -13,21 +13,7 @@ from googleapiclient.http import MediaIoBaseDownload
 import requests
 
 # ================= CONFIG =================
-SERVICE_ACCOUNT_FILE = "service_account.json"
-FOLDER_ID = "15iZ-Cdu5qpDhU95UobDIgvOzWDfT_KZF"
 
-IG_USERNAME = "house_of_foofaji"
-IG_PASSWORD = "YOUR_INSTAGRAM_PASSWORD"
-
-SESSION_FILE = "ig_session.json"
-POSTED_FILE = "posted.json"
-CSV_FILE = "upload_log.csv"
-DOWNLOAD_DIR = "downloads"
-
-HASHTAGS_FILE = "hashtags.txt"
-
-TELEGRAM_BOT_TOKEN = "8507122220:AAGyErjeHqPWFl3N1CPHGRxDcfDEZ80aN5Y"
-TELEGRAM_CHAT_ID = "6109943546"
 
 SCHEDULE_TIMES = ["06:00", "10:00", "15:00", "18:00", "20:00", "22:00"]
 #SCHEDULE_TIMES = ["00:51", "00:53", "15:00", "18:00", "20:00", "22:00"]
