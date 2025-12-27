@@ -29,7 +29,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 SERVICE_ACCOUNT_FILE = "service_account.json"
-SESSION_FILE = "ig_session.json"
+SESSION_FILE = "house_of_foofaji.session"
 
 DOWNLOAD_DIR = "downloads"
 POSTED_JSON = "posted.json"
