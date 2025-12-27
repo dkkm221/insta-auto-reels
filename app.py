@@ -35,8 +35,9 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 IST = pytz.timezone("Asia/Kolkata")
-
-SCHEDULE_TIMES = ["14:32", "14:36", "15:00", "18:00", "20:00", "22:00"]
+# IST is not working, it is working in Western European Time zone WET, Converting actual IST Time to WET for time being
+# SCHEDULE_TIMES = ["08:00", "11:30", "15:00", "18:00", "20:00", "22:00"]
+SCHEDULE_TIMES = ["02:30", "06:00", "09:30", "12:30", "14:30", "16:30"]
 
 # ==========================================
 
