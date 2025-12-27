@@ -26,7 +26,7 @@ POSTED_JSON = "posted.json"
 UPLOAD_LOG = "upload_log.csv"
 HASHTAGS_FILE = "hashtags.txt"
 
-SCHEDULE_TIMES = ["12:23", "12:25", "15:00", "18:00", "20:00", "22:00"]
+SCHEDULE_TIMES = ["12:36", "12:40", "15:00", "18:00", "20:00", "22:00"]
 
 IG_SESSION_JSON = os.getenv("IG_SESSION_JSON")
 
