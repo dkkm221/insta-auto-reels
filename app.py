@@ -6,6 +6,7 @@ import time
 import random
 import threading
 from datetime import datetime
+import pytz
 
 from flask import Flask
 import schedule
@@ -16,38 +17,111 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-# ================= CONFIG =================
-IG_USERNAME = os.getenv("IG_USERNAME")
-IG_PASSWORD = os.getenv("IG_PASSWORD")
+# ===================== CONFIG =====================
 
-SERVICE_ACCOUNT_FILE = "/etc/secrets/service_account.json"
-SESSION_FILE = "/etc/secrets/house_of_foofaji.session"
+IST = pytz.timezone("Asia/Kolkata")
 
 FOLDER_ID = os.getenv("FOLDER_ID")
+IG_USERNAME = os.getenv("IG_USERNAME")
+IG_PASSWORD = os.getenv("IG_PASSWORD")
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+SERVICE_ACCOUNT_FILE = "service_account.json"
+SESSION_FILE = "ig_session.json"
+
 DOWNLOAD_DIR = "downloads"
-POSTED_FILE = "posted.json"
-LOG_FILE = "upload_log.csv"
+POSTED_JSON = "posted.json"
+CSV_LOG = "upload_log.csv"
 HASHTAG_FILE = "hashtags.txt"
 
-SCHEDULE_TIMES = ["06:00", "10:00", "15:00", "18:00", "20:00", "22:00"]
-# ==========================================
+UPLOAD_TIMES = ["13:20", "13:25", "15:00", "18:00", "20:00", "22:00"]
 
-app = Flask(__name__)
+SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# ---------- Telegram ----------
+# ===================== FLASK =====================
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Insta Auto Reels Bot is Running 🚀"
+
+# ===================== UTIL =====================
+
+def now_ist():
+    return datetime.now(IST)
+
 def send_telegram(msg):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": msg})
 
-# ---------- Instagram ----------
-def login_instagram():
+def load_posted():
+    if not os.path.exists(POSTED_JSON):
+        return []
+    with open(POSTED_JSON, "r") as f:
+        return json.load(f)
+
+def save_posted(data):
+    with open(POSTED_JSON, "w") as f:
+        json.dump(data, f, indent=2)
+
+def log_csv(name, caption):
+    exists = os.path.exists(CSV_LOG)
+    with open(CSV_LOG, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not exists:
+            writer.writerow(["filename", "caption", "uploaded_at"])
+        writer.writerow([name, caption, now_ist().strftime("%d-%m-%Y %H:%M")])
+
+def random_caption(filename):
+    base = os.path.splitext(filename)[0].replace("_", " ")
+    tags = []
+    if os.path.exists(HASHTAG_FILE):
+        with open(HASHTAG_FILE) as f:
+            all_tags = [t.strip() for t in f if t.strip()]
+            tags = random.sample(all_tags, min(6, len(all_tags)))
+    return base + "\n\n" + " ".join(tags)
+
+# ===================== GOOGLE DRIVE =====================
+
+def drive_service():
+    creds = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES
+    )
+    return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+def list_videos():
+    service = drive_service()
+    q = f"'{FOLDER_ID}' in parents and trashed=false"
+    res = service.files().list(
+        q=q,
+        fields="files(id,name,mimeType)",
+        pageSize=1000
+    ).execute()
+    files = res.get("files", [])
+    return [f for f in files if f["name"].lower().endswith(".mp4")]
+
+def download_video(file_id, name):
+    path = os.path.join(DOWNLOAD_DIR, name)
+    service = drive_service()
+    req = service.files().get_media(fileId=file_id)
+    fh = io.FileIO(path, "wb")
+    downloader = MediaIoBaseDownload(fh, req)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    fh.close()
+    return path
+
+# ===================== INSTAGRAM =====================
+
+def instagram_login():
     cl = Client()
     if os.path.exists(SESSION_FILE):
         cl.load_settings(SESSION_FILE)
@@ -57,110 +131,63 @@ def login_instagram():
         cl.dump_settings(SESSION_FILE)
     return cl
 
-# ---------- Google Drive ----------
-def drive_service():
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE,
-        scopes=["https://www.googleapis.com/auth/drive.readonly"]
-    )
-    return build("drive", "v3", credentials=creds)
+# ===================== CORE UPLOAD =====================
 
-def list_videos(service):
-    res = service.files().list(
-        q=f"'{FOLDER_ID}' in parents and trashed=false",
-        fields="files(id,name,mimeType)",
-        pageSize=1000
-    ).execute()
-    videos = [f for f in res.get("files", []) if "video" in f["mimeType"]]
-    random.shuffle(videos)
-    return videos
-
-# ---------- Helpers ----------
-def load_posted():
-    if not os.path.exists(POSTED_FILE):
-        return []
-    with open(POSTED_FILE, "r") as f:
-        return json.load(f)
-
-def save_posted(data):
-    with open(POSTED_FILE, "w") as f:
-        json.dump(data, f)
-
-def random_caption(filename):
-    base = os.path.splitext(filename)[0].replace("_", " ")
-    tags = []
-    if os.path.exists(HASHTAG_FILE):
-        with open(HASHTAG_FILE) as f:
-            tags = [t.strip() for t in f if t.strip()]
-    return base + "\n\n" + " ".join(random.sample(tags, min(6, len(tags))))
-
-def log_csv(name, caption):
-    new = not os.path.exists(LOG_FILE)
-    with open(LOG_FILE, "a", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        if new:
-            w.writerow(["time", "video", "caption"])
-        w.writerow([datetime.now(), name, caption])
-
-# ---------- Upload ----------
-def upload_one():
+def upload_one_reel():
     try:
         print("Checking for next reel...")
-        drive = drive_service()
-        videos = list_videos(drive)
-        posted = load_posted()
 
-        remaining = [v for v in videos if v["id"] not in posted]
+        posted = load_posted()
+        posted_ids = {p["id"] for p in posted}
+
+        videos = list_videos()
+        remaining = [v for v in videos if v["id"] not in posted_ids]
+
         if not remaining:
-            send_telegram("✅ All reels uploaded")
+            send_telegram("✅ All videos uploaded.")
             return
 
-        video = remaining[0]
-        path = os.path.join(DOWNLOAD_DIR, video["name"])
-
-        request = drive.files().get_media(fileId=video["id"])
-        with io.FileIO(path, "wb") as f:
-            downloader = MediaIoBaseDownload(f, request)
-            done = False
-            while not done:
-                _, done = downloader.next_chunk()
+        video = random.choice(remaining)
+        path = download_video(video["id"], video["name"])
 
         caption = random_caption(video["name"])
-        cl = login_instagram()
+        cl = instagram_login()
+
         cl.video_upload(path, caption=caption)
 
-        posted.append(video["id"])
+        posted.append({"id": video["id"], "name": video["name"]})
         save_posted(posted)
         log_csv(video["name"], caption)
 
         send_telegram(
             f"✅ Reel Uploaded\n\n"
             f"📹 {video['name']}\n"
-            f"📦 Uploaded: {len(posted)}\n"
-            f"📂 Remaining: {len(remaining)-1}"
+            f"📦 Uploaded: {len(posted)} / {len(videos)}\n"
+            f"⏰ {now_ist().strftime('%d-%m-%Y %H:%M')}"
         )
 
         os.remove(path)
 
     except Exception as e:
-        send_telegram(f"❌ Upload failed\n{str(e)}")
+        send_telegram(f"❌ Upload failed:\n{e}")
         print(e)
 
-# ---------- Scheduler ----------
+# ===================== SCHEDULER (IST FIX) =====================
+
 def scheduler_loop():
-    for t in SCHEDULE_TIMES:
-        schedule.every().day.at(t).do(upload_one)
-        print(f"Scheduled at {t}")
+    schedule.clear()
+
+    for t in UPLOAD_TIMES:
+        schedule.every().day.at(t).do(upload_one_reel)
+        print(f"Scheduled at {t} IST")
+
     while True:
         schedule.run_pending()
-        time.sleep(20)
+        time.sleep(30)
 
-# ---------- Flask ----------
-@app.route("/")
-def home():
-    return "Insta Auto Reels Uploader is running"
+# ===================== START =====================
 
 if __name__ == "__main__":
-    print("Auto Reel Uploader Started")
+    print("Auto Reel Uploader Started (IST)")
     threading.Thread(target=scheduler_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=10000)
