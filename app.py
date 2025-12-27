@@ -36,7 +36,7 @@ POSTED_JSON = "posted.json"
 CSV_LOG = "upload_log.csv"
 HASHTAG_FILE = "hashtags.txt"
 
-UPLOAD_TIMES = ["13:20", "13:25", "15:00", "18:00", "20:00", "22:00"]
+UPLOAD_TIMES = ["13:25", "13:30", "15:00", "18:00", "20:00", "22:00"]
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
