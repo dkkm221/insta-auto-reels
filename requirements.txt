@@ -7,5 +7,6 @@ python-telegram-bot
 schedule
 flask
 requests
+pytz
 
 
